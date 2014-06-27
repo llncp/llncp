@@ -12,6 +12,9 @@ char password[MESSAGE_BUFFERSIZE];
 char dest_chroot[PATH_MAX];
 int is_dest_chroot = FALSE;
 
+el *head = NULL; /* important- initialize to NULL! */
+
+
 FILE *logfile;
 
 	
@@ -444,6 +447,55 @@ void daemonize(void)
 	}
 }
 
+/*##################################################################################################################### */
+/* ***		namecmp, accept_connection:		determine clients for deadlock prevetion (because 2 sockets on 1 port)  *** */
+/* #################################################################################################################### */
+
+
+int namecmp(el *a, el *b)
+{
+	return strcmp(a->token,b->token);
+}
+
+
+void accept_connection(int *server_socket, struct client_info *client)
+{
+	struct el *elt = NULL;
+	int socket;
+	char message_flag, message[MESSAGE_BUFFERSIZE];
+	socklen_t addrlen = sizeof(struct sockaddr_in);
+	
+	
+	while (TRUE) {
+		struct el *connection = (struct el *) malloc(sizeof(struct el));
+		
+		if ((socket = accept(*server_socket, (struct sockaddr*)&connection->info, &addrlen)) == -1) {
+			perror("FATAL ERROR accept");
+			exit(EXIT_FAILURE);
+		}
+		
+		receive_message(&socket, &message_flag, message);
+		
+		memcpy(connection->token, message, MESSAGE_BUFFERSIZE);
+		connection->socket = socket;
+		
+		DL_SEARCH(head,elt,connection,namecmp);
+		if (elt) {
+			
+			client->command_socket = elt->socket;
+			client->data_socket = connection->socket;
+			client->command_info = elt->info;
+			client->data_info = connection->info;
+			DL_DELETE(head,elt);
+			return;
+		} else {
+			DL_APPEND(head, connection);
+		}
+	}
+}
+
+
+
 /* ########################################################################################################## */
 /* ***		MAIN																						  *** */
 /* ########################################################################################################## */
@@ -452,7 +504,6 @@ int main(int argc, char **argv)
 {
 	int server_socket;
 	int port;
-	socklen_t addrlen = sizeof(struct sockaddr_in);
 	pthread_attr_t attr;
 	struct sigaction act;
 	int thr = 0;
@@ -501,16 +552,7 @@ int main(int argc, char **argv)
 	while (TRUE) {
 		struct client_info *client = (struct client_info *) malloc(sizeof(struct client_info));
 		
-		if ((client->command_socket = accept(server_socket, (struct sockaddr*)&client->command_info, &addrlen)) == -1) {
-			perror("FATAL ERROR accept");
-			exit(EXIT_FAILURE);
-		}
-		
-		if ((client->data_socket = accept(server_socket, (struct sockaddr*)&client->data_info, &addrlen)) == -1) {
-			perror("FATAL ERROR accept");
-			exit(EXIT_FAILURE);
-		}
-		
+		accept_connection(&server_socket, client);
 		
 		client->thr_id = 0;
 		client->server_socket = server_socket;

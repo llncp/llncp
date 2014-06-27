@@ -18,6 +18,8 @@
 	#include <fcntl.h>
 	#include <signal.h>
 	#include <unistd.h>
+	
+	#include <time.h>
 
 	#include "libs/try_throw_catch.h"
 	#include "libs/struct_dest_file_attrs.h"
@@ -56,6 +58,7 @@
 	void print_help(char *program_name);
 	void signal_handler (int sig);
 	void server_start (int *server_socket, char *server_address);
+	void generate_token(char *token);
 	int client_connect(const int *port, struct hostent *host);
 	inline int load_file_attrs(struct file_attrs *file_attrs, char *file_attrs_buffer, int *socket);
 	inline int create_dest_file_attrs(struct file_attrs *file_attrs, struct dest_file_attrs *dest_file_attrs, char *dest_file_attrs_buffer);

@@ -10,6 +10,8 @@ jmp_buf ex_buf__;
 
 FILE *logfile;
 
+char token[MESSAGE_BUFFERSIZE];
+
 /* ########################################################################################################## */
 /* ***		Wrappers																					  *** */
 /* ########################################################################################################## */
@@ -181,6 +183,27 @@ void server_start(int *server_socket, char *server_address)
 }
 
 /* ########################################################################################################## */
+/* ***		generate_token: generate hostname and random based token									  *** */
+/* ########################################################################################################## */
+
+void generate_token(char *token)
+{
+	char hostname[MESSAGE_BUFFERSIZE];
+	char number_char[MESSAGE_BUFFERSIZE];
+	int  random_number;
+	
+	memset(token, 0, MESSAGE_BUFFERSIZE);
+	
+	random_number = rand();
+	
+	sprintf(number_char, "%d", random_number);
+	gethostname(hostname, sizeof(hostname));
+	
+	strcat(token, hostname);
+	strcat(token, number_char);
+}
+
+/* ########################################################################################################## */
 /* ***		client_connect: connect to the server instance												  *** */
 /* ########################################################################################################## */
 
@@ -189,6 +212,7 @@ int client_connect(const int *port, struct hostent *host)
 	
 	int client_socket;
 	struct sockaddr_in server_socket;
+	
 	
 	/* create socket */
 	if ((client_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
@@ -206,6 +230,8 @@ int client_connect(const int *port, struct hostent *host)
 		fflush(logfile);
 		return(-1);
 	}
+	
+	send_message_wrapper(&client_socket, AUTH_REQUEST, token);
 	
 	return client_socket;
 }
@@ -437,6 +463,9 @@ void init(char *argv1, char *argv2, char *argv3, struct hostent *host, int *serv
 		perror("fopen logfile");
 		exit(EXIT_FAILURE);
 	}
+	
+	srand(time(NULL));
+	generate_token(token);	
 	
 	sockets->command_socket = client_connect(server_port, host);
 	sockets->data_socket = client_connect(server_port, host);

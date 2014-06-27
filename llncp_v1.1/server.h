@@ -23,6 +23,8 @@
 	#ifdef __sun
 		#include <thread.h>
 	#endif
+	
+	#include "libs/utlist.h"
 
 	#include "constants.h"
 	#include "libs/struct_dest_file_attrs.h"
@@ -52,6 +54,15 @@
 	} client_info;
 
 
+	typedef struct el {
+		char token[MESSAGE_BUFFERSIZE];
+		int socket;
+		struct sockaddr_in info;
+		struct el *next, *prev;
+	} el;
+
+
+
 	inline void recv_bytes_wrapper(char *file_attrs_buffer, int *socket, unsigned long long bytes, struct client_info *client);
 	inline void send_message_wrapper(int *socket, char message_flag, char *message, struct client_info *client);
 	inline void load_path_wrapper(long int *path_len, struct client_info *client, char *path, int *is_dest_chroot, char *dest_chroot);
@@ -68,7 +79,8 @@
 	int authenticate(struct client_info *client);
 	void thr_func (struct client_info *client);
 	void daemonize(void);
-
+	int namecmp(el *a, el *b);
+	void accept_connection(int *server_socket, struct client_info *client);
 
 
 
